@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SmartTourism Semarang - Dynamic Location</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
@@ -10,9 +10,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background-color: #f4f6f9;}
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background-color: #f4f6f9; overflow: hidden;}
         #map { height: 100%; width: 100%; z-index: 1; cursor: crosshair; }
         
+        /* Tampilan Default (Desktop / Laptop) */
         #dashboard-panel {
             position: absolute; top: 15px; right: 15px; z-index: 1000;
             background: rgba(255, 255, 255, 0.95); padding: 20px;
@@ -26,17 +27,10 @@
         h2 { margin-top: 0; color: #2c3e50; font-size: 18px; text-align: center; margin-bottom: 15px;}
         .section-title { font-size: 13px; font-weight: bold; color: #7f8c8d; text-transform: uppercase; margin-top: 15px; margin-bottom: 10px; border-bottom: 2px solid #ecf0f1; padding-bottom: 5px;}
         
-        .loc-btn { 
-            background: #34495e; color: white; border: none; padding: 10px; 
-            border-radius: 6px; font-size: 12px; cursor: pointer; width: 100%; 
-            margin-bottom: 10px; transition: 0.3s;
-        }
+        .loc-btn { background: #34495e; color: white; border: none; padding: 10px; border-radius: 6px; font-size: 12px; cursor: pointer; width: 100%; margin-bottom: 10px; transition: 0.3s;}
         .loc-btn:hover { background: #2c3e50; }
         
-        .status-box { 
-            background: #e8f4fd; border: 1px solid #3498db; padding: 8px; 
-            border-radius: 6px; font-size: 11px; margin-bottom: 15px; color: #2980b9;
-        }
+        .status-box { background: #e8f4fd; border: 1px solid #3498db; padding: 8px; border-radius: 6px; font-size: 11px; margin-bottom: 15px; color: #2980b9;}
 
         input[type="range"], select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #bdc3c7; font-size: 14px; background: #fff;}
         .btn-generate { background: #27ae60; color: white; border: none; padding: 10px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px;}
@@ -48,6 +42,30 @@
 
         .node-icon { border-radius: 50%; text-align: center; box-shadow: 0 3px 6px rgba(0,0,0,0.4); border: 2px solid #fff;}
         .node-label { background: transparent; border: none; box-shadow: none; font-weight: bold; font-size: 10px; color: #2c3e50; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
+
+        /* Tampilan Responsif (Mobile / HP) */
+        @media (max-width: 768px) {
+            #dashboard-panel {
+                top: auto;
+                bottom: 0;
+                right: 0;
+                left: 0;
+                width: 100%;
+                max-height: 48vh; /* Setengah layar HP */
+                border-radius: 20px 20px 0 0; /* Melengkung di atas saja */
+                padding: 15px 20px;
+                box-sizing: border-box;
+                border-top: 5px solid #2980b9;
+                box-shadow: 0 -4px 15px rgba(0,0,0,0.15); /* Bayangan ke atas */
+            }
+            .leaflet-bottom.leaflet-left {
+                bottom: 50vh !important; /* Menaikkan tombol zoom agar tidak tertutup panel */
+            }
+            h2 { font-size: 16px; margin-bottom: 10px; }
+            .section-title { font-size: 11px; margin-top: 10px; margin-bottom: 8px;}
+            .btn-generate { padding: 8px; font-size: 13px; }
+            input[type="range"], select { padding: 6px; font-size: 13px; }
+        }
     </style>
 </head>
 <body>
@@ -58,8 +76,8 @@
     <div class="section-title"><i class="fa-solid fa-location-crosshairs"></i> Pengaturan Lokasi</div>
     <button class="loc-btn" onclick="getLocation()"><i class="fa-solid fa-gps"></i> Gunakan Lokasi GPS Saya</button>
     <div class="status-box" id="locStatus">
-        <i class="fa-solid fa-info-circle"></i> Titik awal saat ini: <b>Default (Pusat Kota)</b>.<br>
-        <i>Tips: Klik langsung pada peta untuk memindahkan lokasi awalmu.</i>
+        <i class="fa-solid fa-info-circle"></i> Titik awal: <b>Default (Pusat Kota)</b>.<br>
+        <i>Tips: Klik pada peta untuk memindahkan lokasi awalmu.</i>
     </div>
 
     <div class="section-title"><i class="fa-solid fa-route"></i> Smart Route Planner</div>
@@ -94,9 +112,10 @@
 <script>
     const map = L.map('map', {zoomControl: false}).setView([-6.9900, 110.4100], 12);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+    L.control.zoom({position: 'bottomleft'}).addTo(map);
 
     let isPlannerMode = false;
-    let userLoc = [-6.9900, 110.4100]; // Default start point (Simpang Lima)
+    let userLoc = [-6.9900, 110.4100]; 
     let userMarker = L.marker(userLoc, {
         icon: L.divIcon({
             className: 'node-icon',
@@ -105,7 +124,6 @@
         })
     }).addTo(map).bindTooltip("Lokasi Anda", {permanent:true, direction:'top', className:'node-label'});
 
-    // --- DATABASE 31 NODE (Tetap Sesuai LKTI) ---
     const nodes = {
         "Kota Lama": { coords: [-6.9682, 110.4275], type: "utama", icon: 'fa-landmark', size: 40, prob: 0.50, cap: 2.5e6 },
         "Lawang Sewu": { coords: [-6.9839, 110.4104], type: "utama", icon: 'fa-building', size: 36, prob: 0.20, cap: 1e6 },
@@ -170,15 +188,16 @@
         return { pl: L.polyline([nodes[e.path[0]].coords, nodes[e.path[1]].coords]).addTo(map), path: e.path };
     });
 
-    // --- FUNGSI LOKASI DINAMIS ---
     function getLocation() {
         if (navigator.geolocation) {
             document.getElementById('locStatus').innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> Mencari lokasi...";
             navigator.geolocation.getCurrentPosition(position => {
                 userLoc = [position.coords.latitude, position.coords.longitude];
                 updateUserMarker();
-                document.getElementById('locStatus').innerHTML = `<i class='fa-solid fa-check-circle'></i> Lokasi ditemukan! Koordinat: ${userLoc[0].toFixed(4)}, ${userLoc[1].toFixed(4)}`;
+                document.getElementById('locStatus').innerHTML = `<i class='fa-solid fa-check-circle'></i> Lokasi GPS Ditemukan!`;
                 map.flyTo(userLoc, 14);
+            }, () => {
+                document.getElementById('locStatus').innerHTML = `<i class='fa-solid fa-triangle-exclamation'></i> Gagal mendapat akses GPS.`;
             });
         }
     }
@@ -186,12 +205,12 @@
     map.on('click', e => {
         userLoc = [e.latlng.lat, e.latlng.lng];
         updateUserMarker();
-        document.getElementById('locStatus').innerHTML = `<i class='fa-solid fa-map-pin'></i> Lokasi diatur manual via Klik Peta.`;
+        document.getElementById('locStatus').innerHTML = `<i class='fa-solid fa-map-pin'></i> Titik awal diatur manual.`;
     });
 
     function updateUserMarker() {
         userMarker.setLatLng(userLoc);
-        if(isPlannerMode) generateRoute(); // Re-render rute jika sedang aktif
+        if(isPlannerMode) generateRoute(); 
     }
 
     const planners = {
@@ -225,7 +244,7 @@
         if(!isPlannerMode) {
             polyLayers.forEach(o => {
                 const maxS = Math.max(statusNodes[o.path[0]], statusNodes[o.path[1]]);
-                o.pl.setStyle({ color: maxS==2?'#e74c3c':maxS==1?'#f39c12':'#2ecc71', weight: 4+(maxS*2) });
+                o.pl.setStyle({ color: maxS==2?'#e74c3c':maxS==1?'#f39c12':'#2ecc71', weight: 4+(maxS*2), opacity: 0.8 });
             });
         }
     }
@@ -235,7 +254,7 @@
         const pref = document.getElementById('prefSelect').value;
         const data = planners[pref];
         document.getElementById('plannerResult').style.display = 'block';
-        document.getElementById('rTimeline').innerHTML = `<li><b>Titik Anda</b></li>` + data.path.map(p => `<li>${p}</li>`).join('');
+        document.getElementById('rTimeline').innerHTML = `<li><b style="color:#2980b9;">Titik Anda</b></li>` + data.path.map(p => `<li>${p}</li>`).join('');
         
         polyLayers.forEach(o => map.removeLayer(o.pl));
         Object.keys(mapMarkers).forEach(k => mapMarkers[k].setOpacity(data.path.includes(k)?1:0.15));
@@ -243,6 +262,9 @@
         if (microPL) map.removeLayer(microPL);
         microPL = L.polyline([userLoc, ...data.path.map(p => nodes[p].coords)], { color: data.color, weight: 6, opacity: 0.9, dashArray: '8, 8' }).addTo(map);
         map.fitBounds(microPL.getBounds(), {padding: [50, 50]});
+        
+        const panel = document.getElementById('dashboard-panel');
+        panel.scrollTop = panel.scrollHeight;
     }
 
     function resetPlanner() {
