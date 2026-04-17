@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartTourism Semarang - Dynamic Location</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background-color: #f4f6f9;}
+        #map { height: 100%; width: 100%; z-index: 1; cursor: crosshair; }
+        
+        #dashboard-panel {
+            position: absolute; top: 15px; right: 15px; z-index: 1000;
+            background: rgba(255, 255, 255, 0.95); padding: 20px;
+            border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+            width: 360px; backdrop-filter: blur(8px); border-top: 5px solid #2980b9;
+            max-height: 90vh; overflow-y: auto;
+        }
+        #dashboard-panel::-webkit-scrollbar { width: 6px; }
+        #dashboard-panel::-webkit-scrollbar-thumb { background-color: #bdc3c7; border-radius: 10px; }
+        
+        h2 { margin-top: 0; color: #2c3e50; font-size: 18px; text-align: center; margin-bottom: 15px;}
+        .section-title { font-size: 13px; font-weight: bold; color: #7f8c8d; text-transform: uppercase; margin-top: 15px; margin-bottom: 10px; border-bottom: 2px solid #ecf0f1; padding-bottom: 5px;}
+        
+        .loc-btn { 
+            background: #34495e; color: white; border: none; padding: 10px; 
+            border-radius: 6px; font-size: 12px; cursor: pointer; width: 100%; 
+            margin-bottom: 10px; transition: 0.3s;
+        }
+        .loc-btn:hover { background: #2c3e50; }
+        
+        .status-box { 
+            background: #e8f4fd; border: 1px solid #3498db; padding: 8px; 
+            border-radius: 6px; font-size: 11px; margin-bottom: 15px; color: #2980b9;
+        }
+
+        input[type="range"], select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #bdc3c7; font-size: 14px; background: #fff;}
+        .btn-generate { background: #27ae60; color: white; border: none; padding: 10px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px;}
+        
+        .planner-result { display: none; background: #f8f9fa; padding: 12px; border-radius: 8px; border: 1px solid #dee2e6; margin-top: 12px;}
+        .timeline { list-style: none; padding: 0; margin: 10px 0; border-left: 2px solid #bdc3c7; margin-left: 10px;}
+        .timeline li { margin-bottom: 8px; padding-left: 15px; position: relative; font-size: 13px; color: #34495e;}
+        .timeline li::before { content: ''; position: absolute; left: -7px; top: 3px; width: 10px; height: 10px; background: white; border: 2px solid #3498db; border-radius: 50%; }
+
+        .node-icon { border-radius: 50%; text-align: center; box-shadow: 0 3px 6px rgba(0,0,0,0.4); border: 2px solid #fff;}
+        .node-label { background: transparent; border: none; box-shadow: none; font-weight: bold; font-size: 10px; color: #2c3e50; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
+    </style>
+</head>
+<body>
+
+<div id="dashboard-panel">
+    <h2><i class="fa-solid fa-mobile-screen"></i> SmartTourism App</h2>
+    
+    <div class="section-title"><i class="fa-solid fa-location-crosshairs"></i> Pengaturan Lokasi</div>
+    <button class="loc-btn" onclick="getLocation()"><i class="fa-solid fa-gps"></i> Gunakan Lokasi GPS Saya</button>
+    <div class="status-box" id="locStatus">
+        <i class="fa-solid fa-info-circle"></i> Titik awal saat ini: <b>Default (Pusat Kota)</b>.<br>
+        <i>Tips: Klik langsung pada peta untuk memindahkan lokasi awalmu.</i>
+    </div>
+
+    <div class="section-title"><i class="fa-solid fa-route"></i> Smart Route Planner</div>
+    <div class="control-group">
+        <label>Pilih Tema Perjalanan:</label>
+        <select id="prefSelect">
+            <option value="populer">Tur Ikonik (Zona Padat)</option>
+            <option value="alam">Ekowisata (Smart Route)</option>
+            <option value="desa">Desa Wisata (Smart Route)</option>
+            <option value="religi">Wisata Religi (Smart Route)</option>
+            <option value="keluarga">Rekreasi Keluarga (Smart Route)</option>
+            <option value="museum">Tur Edukasi (Smart Route)</option>
+        </select>
+        <button class="btn-generate" onclick="generateRoute()"><i class="fa-solid fa-location-arrow"></i> Petakan Dari Posisi Saya</button>
+    </div>
+
+    <div id="plannerResult" class="planner-result">
+        <div id="rTitle" style="font-weight:bold; font-size:14px; margin-bottom:5px;">Rute Teroptimasi</div>
+        <ul class="timeline" id="rTimeline"></ul>
+        <button class="btn-generate" style="background:#7f8c8d;" onclick="resetPlanner()">Reset Jaringan</button>
+    </div>
+
+    <div class="section-title" style="margin-top: 20px;"><i class="fa-solid fa-satellite-dish"></i> Radar Kepadatan Kota</div>
+    <div class="control-group">
+        <label>Wisatawan: <span id="valWisatawan" style="color: #2980b9;">6.482.736</span></label>
+        <input type="range" id="slideWisatawan" min="1000000" max="10000000" step="100000" value="6482736">
+    </div>
+</div>
+
+<div id="map"></div>
+
+<script>
+    const map = L.map('map', {zoomControl: false}).setView([-6.9900, 110.4100], 12);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+
+    let isPlannerMode = false;
+    let userLoc = [-6.9900, 110.4100]; // Default start point (Simpang Lima)
+    let userMarker = L.marker(userLoc, {
+        icon: L.divIcon({
+            className: 'node-icon',
+            html: `<div style="background:#2c3e50; color:white; width:30px; height:30px; border-radius:50%; line-height:30px; font-size:14px;"><i class="fa-solid fa-user-large"></i></div>`,
+            iconSize: [30, 30], iconAnchor: [15, 15]
+        })
+    }).addTo(map).bindTooltip("Lokasi Anda", {permanent:true, direction:'top', className:'node-label'});
+
+    // --- DATABASE 31 NODE (Tetap Sesuai LKTI) ---
+    const nodes = {
+        "Kota Lama": { coords: [-6.9682, 110.4275], type: "utama", icon: 'fa-landmark', size: 40, prob: 0.50, cap: 2.5e6 },
+        "Lawang Sewu": { coords: [-6.9839, 110.4104], type: "utama", icon: 'fa-building', size: 36, prob: 0.20, cap: 1e6 },
+        "Sam Poo Kong": { coords: [-6.9963, 110.3980], type: "utama", icon: 'fa-vihara', size: 32, prob: 0.11, cap: 6e5 },
+        "Simpang Lima": { coords: [-6.9897, 110.4229], type: "berkembang", icon: 'fa-city', size: 28, prob: 0.0175, cap: 1.5e5 },
+        "Masjid Agung": { coords: [-6.9840, 110.4468], type: "berkembang", icon: 'fa-mosque', size: 28, prob: 0.0175, cap: 1.5e5 },
+        "Semarang Zoo": { coords: [-6.9744, 110.3121], type: "berkembang", icon: 'fa-hippo', size: 24, prob: 0.0175, cap: 1.5e5 },
+        "Puri Maerokoco": { coords: [-6.9585, 110.3885], type: "berkembang", icon: 'fa-map', size: 24, prob: 0.0175, cap: 1.5e5 },
+        "Taman Lele": { coords: [-6.9821, 110.3456], type: "berkembang", icon: 'fa-fish', size: 24, prob: 0.0175, cap: 1.5e5 },
+        "Museum Ranggawarsita": { coords: [-6.9842, 110.3887], type: "berkembang", icon: 'fa-landmark-dome', size: 24, prob: 0.0175, cap: 1.5e5 },
+        "TBRS (Raden Saleh)": { coords: [-6.9950, 110.4250], type: "berkembang", icon: 'fa-masks-theater', size: 24, prob: 0.0175, cap: 1.5e5 },
+        "Kampung Batik": { coords: [-6.9715, 110.4290], type: "berkembang", icon: 'fa-palette', size: 20, prob: 0.0175, cap: 1.5e5 },
+        "Goa Kreo": { coords: [-7.0375, 110.3475], type: "alternatif", icon: 'fa-tree', size: 24, prob: 0.0025, cap: 4e4 },
+        "Waduk Jatibarang": { coords: [-7.0350, 110.3550], type: "alternatif", icon: 'fa-water', size: 24, prob: 0.0025, cap: 4e4 },
+        "Hutan Tinjomoyo": { coords: [-7.0250, 110.4000], type: "alternatif", icon: 'fa-leaf', size: 24, prob: 0.0025, cap: 4e4 },
+        "Desa Wisata Kandri": { coords: [-7.0380, 110.3500], type: "alternatif", icon: 'fa-campground', size: 20, prob: 0.0025, cap: 4e4 },
+        "Desa Wisata Kedungpane": { coords: [-7.0150, 110.3350], type: "alternatif", icon: 'fa-house-chimney', size: 20, prob: 0.0025, cap: 4e4 },
+        "Kampung Jawi": { coords: [-7.0250, 110.3800], type: "alternatif", icon: 'fa-gopuram', size: 20, prob: 0.0025, cap: 4e4 },
+        "Pantai Marina": { coords: [-6.9480, 110.3880], type: "alternatif", icon: 'fa-umbrella-beach', size: 20, prob: 0.0025, cap: 4e4 },
+        "Jungle Toon": { coords: [-6.9920, 110.3600], type: "alternatif", icon: 'fa-water-ladder', size: 20, prob: 0.0025, cap: 4e4 },
+        "Makam Pandanaran": { coords: [-6.9900, 110.4150], type: "alternatif", icon: 'fa-monument', size: 20, prob: 0.0025, cap: 4e4 },
+        "Museum Mandala Bhakti": { coords: [-6.9850, 110.4080], type: "alternatif", icon: 'fa-shield-halved', size: 20, prob: 0.0025, cap: 4e4 },
+        "Museum MURI": { coords: [-7.0150, 110.4150], type: "alternatif", icon: 'fa-award', size: 20, prob: 0.0025, cap: 4e4 },
+        "Old City 3D Trick Art": { coords: [-6.9670, 110.4280], type: "alternatif", icon: 'fa-camera', size: 20, prob: 0.0025, cap: 4e4 },
+        "Vihara Buddhagaya": { coords: [-7.0450, 110.4250], type: "alternatif", icon: 'fa-dharmachakra', size: 20, prob: 0.0025, cap: 4e4 },
+        "Curug Gondoriyo": { coords: [-7.0100, 110.3200], type: "alternatif", icon: 'fa-arrow-down-water', size: 16, prob: 0.0025, cap: 4e4 },
+        "Silayur Park": { coords: [-7.0120, 110.3550], type: "alternatif", icon: 'fa-tree-city', size: 16, prob: 0.0025, cap: 4e4 },
+        "Dung Tungkul Meteseh": { coords: [-7.0500, 110.4500], type: "alternatif", icon: 'fa-mountain-sun', size: 16, prob: 0.0025, cap: 4e4 },
+        "Firdaus Fatimah Zahra": { coords: [-7.0600, 110.4000], type: "alternatif", icon: 'fa-kaaba', size: 16, prob: 0.0025, cap: 4e4 },
+        "D'pong Semarang": { coords: [-7.0550, 110.3900], type: "alternatif", icon: 'fa-horse', size: 16, prob: 0.0025, cap: 4e4 },
+        "Gelanggang Pemuda": { coords: [-6.9950, 110.4500], type: "alternatif", icon: 'fa-person-running', size: 16, prob: 0.0025, cap: 4e4 },
+        "Pura Agung Giri Natha": { coords: [-7.0000, 110.4150], type: "alternatif", icon: 'fa-om', size: 16, prob: 0.0025, cap: 4e4 }
+    };
+
+    const mapMarkers = {};
+    Object.keys(nodes).forEach(key => {
+        const n = nodes[key];
+        const marker = L.marker(n.coords).addTo(map);
+        marker.bindTooltip(key, { permanent: true, direction: 'bottom', className: 'node-label', offset: [0, (n.size/2) + 2] });
+        mapMarkers[key] = marker;
+    });
+
+    const edges = [
+        { path: ["Kota Lama", "Lawang Sewu"] }, { path: ["Lawang Sewu", "Sam Poo Kong"] },
+        { path: ["Kota Lama", "Simpang Lima"] }, { path: ["Lawang Sewu", "Simpang Lima"] },
+        { path: ["Kota Lama", "Masjid Agung"] }, { path: ["Kota Lama", "Kampung Batik"] },
+        { path: ["Simpang Lima", "TBRS (Raden Saleh)"] }, { path: ["Simpang Lima", "Pura Agung Giri Natha"] },
+        { path: ["Masjid Agung", "Gelanggang Pemuda"] }, { path: ["Kota Lama", "Old City 3D Trick Art"] },
+        { path: ["Lawang Sewu", "Museum Mandala Bhakti"] }, { path: ["Sam Poo Kong", "Waduk Jatibarang"] },
+        { path: ["Waduk Jatibarang", "Goa Kreo"] }, { path: ["Goa Kreo", "Desa Wisata Kandri"] },
+        { path: ["Desa Wisata Kandri", "Desa Wisata Kedungpane"] }, { path: ["Goa Kreo", "Curug Gondoriyo"] },
+        { path: ["Lawang Sewu", "Semarang Zoo"] }, { path: ["Semarang Zoo", "Taman Lele"] },
+        { path: ["Simpang Lima", "Hutan Tinjomoyo"] }, { path: ["Hutan Tinjomoyo", "Kampung Jawi"] },
+        { path: ["Simpang Lima", "Vihara Buddhagaya"] }, { path: ["Vihara Buddhagaya", "Firdaus Fatimah Zahra"] },
+        { path: ["Puri Maerokoco", "Pantai Marina"] }, { path: ["Museum Ranggawarsita", "Puri Maerokoco"] },
+        { path: ["Taman Lele", "Jungle Toon"] }, { path: ["Desa Wisata Kedungpane", "Silayur Park"] },
+        { path: ["Desa Wisata Kandri", "D'pong Semarang"] }, { path: ["Hutan Tinjomoyo", "Museum MURI"] },
+        { path: ["Vihara Buddhagaya", "Dung Tungkul Meteseh"] }
+    ];
+
+    const polyLayers = edges.map(e => {
+        return { pl: L.polyline([nodes[e.path[0]].coords, nodes[e.path[1]].coords]).addTo(map), path: e.path };
+    });
+
+    // --- FUNGSI LOKASI DINAMIS ---
+    function getLocation() {
+        if (navigator.geolocation) {
+            document.getElementById('locStatus').innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> Mencari lokasi...";
+            navigator.geolocation.getCurrentPosition(position => {
+                userLoc = [position.coords.latitude, position.coords.longitude];
+                updateUserMarker();
+                document.getElementById('locStatus').innerHTML = `<i class='fa-solid fa-check-circle'></i> Lokasi ditemukan! Koordinat: ${userLoc[0].toFixed(4)}, ${userLoc[1].toFixed(4)}`;
+                map.flyTo(userLoc, 14);
+            });
+        }
+    }
+
+    map.on('click', e => {
+        userLoc = [e.latlng.lat, e.latlng.lng];
+        updateUserMarker();
+        document.getElementById('locStatus').innerHTML = `<i class='fa-solid fa-map-pin'></i> Lokasi diatur manual via Klik Peta.`;
+    });
+
+    function updateUserMarker() {
+        userMarker.setLatLng(userLoc);
+        if(isPlannerMode) generateRoute(); // Re-render rute jika sedang aktif
+    }
+
+    const planners = {
+        populer: { path: ["Kota Lama", "Lawang Sewu", "Sam Poo Kong"], color: "#c0392b" },
+        alam: { path: ["Waduk Jatibarang", "Goa Kreo", "Hutan Tinjomoyo", "Curug Gondoriyo"], color: "#27ae60" },
+        desa: { path: ["Desa Wisata Kandri", "Kampung Jawi", "Desa Wisata Kedungpane"], color: "#27ae60" },
+        religi: { path: ["Masjid Agung", "Pura Agung Giri Natha", "Vihara Buddhagaya"], color: "#27ae60" },
+        keluarga: { path: ["Semarang Zoo", "Puri Maerokoco", "Taman Lele", "Pantai Marina"], color: "#27ae60" },
+        museum: { path: ["Museum Ranggawarsita", "Museum MURI", "Museum Mandala Bhakti"], color: "#27ae60" }
+    };
+
+    let microPL = null;
+
+    function update() {
+        const val = parseInt(document.getElementById('slideWisatawan').value);
+        document.getElementById('valWisatawan').innerText = val.toLocaleString('id-ID');
+        const statusNodes = {};
+
+        Object.keys(nodes).forEach(k => {
+            const n = nodes[k];
+            const ratio = (val * n.prob) / n.cap;
+            let color = ratio >= 0.9 ? '#e74c3c' : ratio >= 0.6 ? '#f39c12' : '#2ecc71';
+            statusNodes[k] = ratio >= 0.9 ? 2 : ratio >= 0.6 ? 1 : 0;
+            mapMarkers[k].setIcon(L.divIcon({
+                className: 'node-icon',
+                html: `<div style="background:${color}; color:white; width:100%; height:100%; border-radius:50%; line-height:${n.size}px; font-size:${n.size*0.45}px;"><i class="fa-solid ${n.icon}"></i></div>`,
+                iconSize: [n.size, n.size], iconAnchor: [n.size/2, n.size/2]
+            }));
+        });
+
+        if(!isPlannerMode) {
+            polyLayers.forEach(o => {
+                const maxS = Math.max(statusNodes[o.path[0]], statusNodes[o.path[1]]);
+                o.pl.setStyle({ color: maxS==2?'#e74c3c':maxS==1?'#f39c12':'#2ecc71', weight: 4+(maxS*2) });
+            });
+        }
+    }
+
+    function generateRoute() {
+        isPlannerMode = true;
+        const pref = document.getElementById('prefSelect').value;
+        const data = planners[pref];
+        document.getElementById('plannerResult').style.display = 'block';
+        document.getElementById('rTimeline').innerHTML = `<li><b>Titik Anda</b></li>` + data.path.map(p => `<li>${p}</li>`).join('');
+        
+        polyLayers.forEach(o => map.removeLayer(o.pl));
+        Object.keys(mapMarkers).forEach(k => mapMarkers[k].setOpacity(data.path.includes(k)?1:0.15));
+        
+        if (microPL) map.removeLayer(microPL);
+        microPL = L.polyline([userLoc, ...data.path.map(p => nodes[p].coords)], { color: data.color, weight: 6, opacity: 0.9, dashArray: '8, 8' }).addTo(map);
+        map.fitBounds(microPL.getBounds(), {padding: [50, 50]});
+    }
+
+    function resetPlanner() {
+        isPlannerMode = false; document.getElementById('plannerResult').style.display = 'none';
+        if (microPL) map.removeLayer(microPL);
+        Object.keys(mapMarkers).forEach(k => mapMarkers[k].setOpacity(1));
+        polyLayers.forEach(o => map.addLayer(o.pl));
+        update();
+    }
+
+    document.getElementById('slideWisatawan').addEventListener('input', update);
+    update();
+</script>
+</body>
+</html>
