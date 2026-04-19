@@ -253,6 +253,17 @@
         isPlannerMode = true;
         const pref = document.getElementById('prefSelect').value;
         const data = planners[pref];
+        
+        // +++ KODE BARU DITAMBAHKAN DI SINI +++
+        // Mengirim data rute (data.path) ke React App jika dibuka di dalam iframe
+        if (window !== window.parent) {
+            window.parent.postMessage({
+                type: 'UPDATE_SMART_ROUTE',
+                payload: data.path 
+            }, '*');
+        }
+        // +++++++++++++++++++++++++++++++++++++
+
         document.getElementById('plannerResult').style.display = 'block';
         document.getElementById('rTimeline').innerHTML = `<li><b style="color:#2980b9;">Titik Anda</b></li>` + data.path.map(p => `<li>${p}</li>`).join('');
         
